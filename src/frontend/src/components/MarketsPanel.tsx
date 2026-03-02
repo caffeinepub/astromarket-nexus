@@ -18,13 +18,15 @@ import { useAppStore } from "../store/useAppStore";
 import { type DataPoint, generateMarketData } from "../utils/marketData";
 import { AstroEventBar } from "./AstroEventBar";
 
-type TimeRange = "1M" | "3M" | "1Y" | "5Y" | "All";
+type TimeRange = "1M" | "3M" | "1Y" | "5Y" | "10Y" | "20Y" | "All";
 
 const TIME_RANGE_SECONDS: Record<TimeRange, number> = {
   "1M": 30 * 86400,
   "3M": 90 * 86400,
   "1Y": 365 * 86400,
   "5Y": 5 * 365 * 86400,
+  "10Y": 10 * 365 * 86400,
+  "20Y": 20 * 365 * 86400,
   All: 50 * 365 * 86400,
 };
 
@@ -346,21 +348,23 @@ export function MarketsPanel() {
 
           {/* Time range buttons */}
           <div className="flex gap-1">
-            {(["1M", "3M", "1Y", "5Y", "All"] as TimeRange[]).map((r) => (
-              <button
-                key={r}
-                type="button"
-                onClick={() => setTimeRange(r)}
-                className={`font-mono text-xs px-2.5 py-1 rounded border transition-all duration-150
+            {(["1M", "3M", "1Y", "5Y", "10Y", "20Y", "All"] as TimeRange[]).map(
+              (r) => (
+                <button
+                  key={r}
+                  type="button"
+                  onClick={() => setTimeRange(r)}
+                  className={`font-mono text-xs px-2.5 py-1 rounded border transition-all duration-150
                   ${
                     timeRange === r
                       ? "bg-neon-blue/20 border-neon-blue text-neon-blue"
                       : "border-border/50 text-muted-foreground hover:border-border hover:text-foreground"
                   }`}
-              >
-                {r}
-              </button>
-            ))}
+                >
+                  {r}
+                </button>
+              ),
+            )}
           </div>
         </div>
 

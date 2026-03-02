@@ -434,6 +434,189 @@ export function computeAstroEvents(
   return events;
 }
 
+// ─── Planetary Synodic Periods ─────────────────────────────────────────────────
+
+export const PLANETARY_SYNODIC_PERIODS: Record<string, number> = {
+  "Mercury-Venus": 144,
+  "Mercury-Mars": 100,
+  "Venus-Mars": 334,
+  "Jupiter-Saturn": 7253,
+  "Jupiter-Uranus": 5034,
+  "Saturn-Neptune": 12782,
+  "Sun-Jupiter": 398.9,
+  "Sun-Saturn": 378.1,
+  "Sun-Mars": 779.9,
+  "Sun-Venus": 583.9,
+  "Sun-Mercury": 115.9,
+};
+
+// ─── DFT-based Periodogram ─────────────────────────────────────────────────────
+
+/**
+ * Approximate DFT-based periodogram.
+ * Returns top N dominant period/power pairs, periods in days.
+ * Only returns periods between 14 and 10000 days.
+ */
+export function computeDominantPeriods(
+  values: number[],
+  sampleRateDays: number,
+  maxPeriods = 20,
+): Array<{ period: number; power: number }> {
+  if (values.length < 4) return [];
+
+  // Downsample to max 500 points for browser performance
+  const MAX_SAMPLES = 500;
+  let samples: number[] = values;
+  let effectiveSampleRate = sampleRateDays;
+
+  if (values.length > MAX_SAMPLES) {
+    const step = Math.floor(values.length / MAX_SAMPLES);
+    const downsampled: number[] = [];
+    for (let i = 0; i < values.length; i += step) {
+      downsampled.push(values[i]);
+    }
+    samples = downsampled;
+    effectiveSampleRate = sampleRateDays * step;
+  }
+
+  const n = samples.length;
+
+  // Remove mean (detrend by subtracting mean)
+  const mean = samples.reduce((s, v) => s + v, 0) / n;
+  const detrended = samples.map((v) => v - mean);
+
+  // DFT: compute power spectrum
+  const results: Array<{ period: number; power: number }> = [];
+
+  // Only iterate frequency bins corresponding to periods 14–10000 days
+  const minFreq = 1 / 10000; // days^-1
+  const maxFreq = 1 / 14; // days^-1
+  const nyquist = 1 / (2 * effectiveSampleRate);
+
+  const kMin = Math.max(1, Math.floor(minFreq * n * effectiveSampleRate));
+  const kMax = Math.min(
+    Math.floor(n / 2),
+    Math.ceil(Math.min(maxFreq, nyquist) * n * effectiveSampleRate),
+  );
+
+  for (let k = kMin; k <= kMax; k++) {
+    let re = 0;
+    let im = 0;
+    const omega = (2 * Math.PI * k) / n;
+    for (let t = 0; t < n; t++) {
+      re += detrended[t] * Math.cos(omega * t);
+      im -= detrended[t] * Math.sin(omega * t);
+    }
+    const power = Math.sqrt(re * re + im * im) / n;
+    const period = (n * effectiveSampleRate) / k;
+
+    if (period >= 14 && period <= 10000) {
+      results.push({ period, power });
+    }
+  }
+
+  // Normalize power to 0–1
+  const maxPower = Math.max(...results.map((r) => r.power), 1e-9);
+  for (const r of results) {
+    r.power = r.power / maxPower;
+  }
+
+  // Sort by power descending, return top N
+  return results.sort((a, b) => b.power - a.power).slice(0, maxPeriods);
+}
+
+// ─── Phase Synchronization ─────────────────────────────────────────────────────
+
+/**
+ * Phase synchronization index 0–1 between two series at a given period.
+ * Uses mean resultant length of phase difference.
+ */
+export function computePhaseSync(
+  series1: number[],
+  series2: number[],
+  periodDays: number,
+  sampleRateDays: number,
+): number {
+  const n = Math.min(series1.length, series2.length);
+  if (n < 4 || periodDays <= 0) return 0;
+
+  const samplesPerCycle = periodDays / sampleRateDays;
+
+  // Compute normalized instantaneous phase for each series using band-pass approach:
+  // phase_i = 2*pi * (t mod period) / period for each index
+  // Then compute relative phase: phase1[i] - phase2[i]
+  // Mean resultant length = |mean(exp(i*(phi1 - phi2)))|
+
+  // For a simpler approach: use the analytic signal via Hilbert-transform approximation
+  // by computing instantaneous phase as atan2 of quadrature (Hilbert) component
+  // We approximate Hilbert transform via convolution with 1/(pi*t) kernel
+
+  // Practical approach: band-pass filter around the target period, then compute phase
+  // For efficiency, use the simple approach: assign phases based on normalized position in cycle
+
+  // Compute band-passed signal around target period using simple moving average subtraction
+  const halfWindow = Math.round(samplesPerCycle / 2);
+  const windowSize = Math.max(2, Math.min(halfWindow, Math.floor(n / 4)));
+
+  function bandPass(s: number[]): number[] {
+    // Moving average to get trend
+    const trend = new Array(s.length).fill(0);
+    for (let i = 0; i < s.length; i++) {
+      let sum = 0;
+      let cnt = 0;
+      for (
+        let j = Math.max(0, i - windowSize);
+        j <= Math.min(s.length - 1, i + windowSize);
+        j++
+      ) {
+        sum += s[j];
+        cnt++;
+      }
+      trend[i] = sum / cnt;
+    }
+    return s.map((v, i) => v - trend[i]);
+  }
+
+  const bp1 = bandPass(series1.slice(0, n));
+  const bp2 = bandPass(series2.slice(0, n));
+
+  // Compute instantaneous phase via atan2(Hilbert, signal)
+  // Approximate Hilbert transform: use phase shift by cycle
+  const phShift = Math.round(samplesPerCycle / 4); // quarter cycle
+
+  let sumCos = 0;
+  let sumSin = 0;
+  let count = 0;
+
+  for (let i = phShift; i < n - phShift; i++) {
+    // Approximate instantaneous phase for s1 and s2
+    const h1 = bp1[Math.min(i + phShift, n - 1)]; // quadrature approx
+    const h2 = bp2[Math.min(i + phShift, n - 1)];
+
+    if (
+      Math.abs(bp1[i]) < 1e-10 &&
+      Math.abs(h1) < 1e-10 &&
+      Math.abs(bp2[i]) < 1e-10 &&
+      Math.abs(h2) < 1e-10
+    )
+      continue;
+
+    const phi1 = Math.atan2(h1, bp1[i]);
+    const phi2 = Math.atan2(h2, bp2[i]);
+    const dPhi = phi1 - phi2;
+
+    sumCos += Math.cos(dPhi);
+    sumSin += Math.sin(dPhi);
+    count++;
+  }
+
+  if (count === 0) return 0;
+
+  const meanCos = sumCos / count;
+  const meanSin = sumSin / count;
+  return Math.sqrt(meanCos * meanCos + meanSin * meanSin);
+}
+
 // Zodiac signs
 export const ZODIAC_SIGNS = [
   { name: "Aries", symbol: "♈", start: 0, glyph: "♈︎" },

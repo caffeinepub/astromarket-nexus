@@ -1,5 +1,6 @@
 import { Toaster } from "@/components/ui/sonner";
 import {
+  Activity,
   BookOpen,
   ChevronLeft,
   ChevronRight,
@@ -14,6 +15,7 @@ import { Suspense, lazy, useEffect, useState } from "react";
 import { AnnotationsPanel } from "./components/AnnotationsPanel";
 import { CorrelationPanel } from "./components/CorrelationPanel";
 import { CosmicScalePanel } from "./components/CosmicScalePanel";
+import { CyclesPanel } from "./components/CyclesPanel";
 import { MarketsPanel } from "./components/MarketsPanel";
 import { OverviewDashboard } from "./components/OverviewDashboard";
 import { TimelineScrubber } from "./components/TimelineScrubber";
@@ -69,6 +71,12 @@ const NAV_ITEMS: NavItem[] = [
     label: "Correlation",
     icon: <GitBranch className="w-4 h-4" />,
     ocid: "nav.correlation.tab",
+  },
+  {
+    id: "cycles",
+    label: "Cycles",
+    icon: <Activity className="w-4 h-4" />,
+    ocid: "nav.cycles.tab",
   },
   {
     id: "annotations",
@@ -345,6 +353,8 @@ export default function App() {
           {activePanel === "zodiac" && <ZodiacWheel />}
 
           {activePanel === "correlation" && <CorrelationPanel />}
+
+          {activePanel === "cycles" && <CyclesPanel />}
 
           {activePanel === "annotations" && <AnnotationsPanel />}
         </main>

@@ -2,40 +2,73 @@
 
 ## Current State
 
-The platform has:
-- A Motoko backend with placeholder HTTP outcall methods (`fetchBtcPrice`, `fetchEthPrice`, `fetchTotalMcap`, `fetchBtcDominance`, `fetchFearGreedIndex`) that are empty stubs — no real HTTP requests are made
-- A `getLiveMarketSnapshot()` returning an empty livePricesStore
-- A frontend `CorrelationPanel` computing Pearson correlation between market series and continuous planetary longitude series over 5-year windows
-- An `OverviewDashboard` computing BTC dominance via a broken formula capped at 80%
-- No correlation between discrete aspect *events* (conjunctions, oppositions, retrogrades, full moons) and market price movements
-- No automatic surfacing of statistically significant patterns
+The platform has 6 panels: Overview Dashboard, Markets Panel (with live price feeds), Solar System 3D, Zodiac Wheel, Correlation Engine, and Annotations. The Correlation Engine runs a 5-year Aspect Event Study with lookback window fixed at 5 years, showing a flat table of patterns ranked by p-value. The Markets panel has 1M/3M/1Y/5Y/All time range buttons. There is no "pattern history" chart that overlays astrological events on prices. The event study window is hard-coded to 7 days.
 
 ## Requested Changes (Diff)
 
 ### Add
 
-- **Aspect-Event Correlation Engine (frontend)**: Compute market price changes in windows around aspect events (e.g. ±7 days, ±3 days, ±1 day around conjunctions/oppositions/full moons/retrogrades). For each market+aspect_type pair, compute: average return in window, t-statistic, p-value, sample count. Surface top significant patterns automatically (p < 0.05).
-- **`AspectCorrelationResult` type**: `{ aspectType, body1, body2, market, windowDays, avgReturn, tStat, pValue, sampleCount, significance }`
-- **`computeAspectEventCorrelation()` utility** in `astroCalc.ts`: given a list of aspect event timestamps, a market ID, a window size, and a time range, computes the event-study statistics
-- **`AspectPatternPanel` section in `CorrelationPanel`**: Table of automatically-detected significant patterns (p < 0.1), sortable by p-value, showing aspect type, bodies, market, window, avg return, significance stars
-- **Live BTC Dominance**: Fetch from CoinGecko global endpoint (`/global`) which returns `market_cap_percentage.btc` directly. Store as a `BTC_DOM` key in livePricesStore.
-- **Backend real HTTP outcalls**: Implement `fetchBtcPrice`, `fetchEthPrice`, `fetchTotalMcap`, `fetchBtcDominance`, `fetchFearGreedIndex` with actual HTTP outcall calls to CoinGecko and Alternative.me APIs. Parse JSON responses and store in livePricesStore with correct values.
-- **`BTC_DOM` mapping in frontend**: Map the `BTC_DOM` live price to the BTC Dominance KPI card in OverviewDashboard, replacing the broken computed formula.
-- **Stock/commodity price feeds**: Add stooq-based feeds for SP500, NASDAQ, GOLD, DXY to the backend heartbeat fetcher.
+1. **Extended Lookback Windows (10Y, 20Y)** in the Aspect Event Study. The user should be able to select the study period: 1Y, 5Y, 10Y, 20Y. The matrix correlation window and rolling correlation window should also be adjustable (5Y, 10Y, 20Y).
+
+2. **Pattern History Chart** — a new chart in the Correlation panel that, for any selected (market, aspect type) pair from the study results, renders a full price chart and overlays vertical marker lines at each historical occurrence of that aspect event. Hovering a marker shows event date, price at event, and window return. This allows visual inspection of every occurrence.
+
+3. **Event Window Selector** — let the user pick the event window width: 3 days, 7 days, 14 days, 30 days.
+
+4. **Market Navigator enhancement** — add 10Y and 20Y buttons to the Markets panel time range selector (in addition to existing 1M/3M/1Y/5Y/All).
+
+5. **Cycle Analysis Panel (new tab)** — a dedicated panel called "Cycles" that shows:
+   - Fourier / periodogram analysis: identifies dominant periodicity in any market vs any astro series (e.g. "BTC has a 398-day dominant cycle that aligns with Jupiter's synodic period")
+   - A visual spectral chart showing power vs period
+   - A "phase synchronization" score showing how well market cycles are phase-locked to a planetary cycle
+
+6. **Aspect Calendar** — a new scrollable calendar/timeline in the Correlation panel that shows upcoming and past astrological events in a calendar-style grid with the market performance overlaid as color coding (green = positive return post-event, red = negative).
+
+7. **Statistical Summary Cards** in Correlation panel header — showing: total events analyzed, most bullish aspect, most bearish aspect, strongest correlation pair.
+
+8. **Export hint** — add a copy-to-clipboard button on the aspect study table to export results as CSV text.
 
 ### Modify
 
-- `OverviewDashboard.tsx`: Replace broken btcDom formula with live `BTC_DOM` value from snapshot (fallback to computed only when not live)
-- `CorrelationPanel.tsx`: Add new "Aspect Patterns" tab/section showing `AspectPatternPanel` with auto-detected significant patterns
-- `main.mo`: Replace all empty stub functions with real HTTP outcall implementations using `OutcallModule`
+- `CorrelationPanel.tsx`: Add lookback window selector (1Y/5Y/10Y/20Y), event window selector (3d/7d/14d/30d), pattern history chart section, statistical summary cards, aspect calendar section, CSV export button.
+- `MarketsPanel.tsx`: Add 10Y and 20Y buttons to time range buttons row.
+- `astroCalc.ts`: Add `runAspectEventStudyExtended` export that accepts explicit `windowDays` and start/end (already has this but the UI wasn't wiring it). Add `computeDominantPeriods` function for Fourier periodogram. Add `computePhaseSync` function.
+- `App.tsx`: Add "Cycles" panel to NAV_ITEMS with a FlaskConical or Activity icon. Add `CyclesPanel` to panel routing.
+- New file `CyclesPanel.tsx`: Fourier analysis UI.
 
 ### Remove
 
-- The broken btcDom clamping formula in OverviewDashboard (lines 262-263)
+- Nothing removed.
 
 ## Implementation Plan
 
-1. **Backend (Motoko)**: Implement `fetchBtcPrice` → CoinGecko `/simple/price?ids=bitcoin&vs_currencies=usd&include_24hr_change=true`; `fetchEthPrice` → same endpoint with `ethereum`; `fetchTotalMcap` + `fetchBtcDominance` → CoinGecko `/global` (parses total_market_cap.usd and market_cap_percentage.btc); `fetchFearGreedIndex` → Alternative.me `/fng/`. Store each in livePricesStore with marketId keys: `BTC`, `ETH`, `TOTAL_MCAP`, `BTC_DOM`, `FEAR_GREED`.
-2. **`computeAspectEventCorrelation()` utility**: Takes aspect events in a time range, groups by aspect type, for each event computes the market return in a ±windowDays window using `generateMarketData`, aggregates mean and t-stat using paired t-test approximation.
-3. **`CorrelationPanel` Aspect Patterns section**: Runs event-study for all (market × aspect_type) combinations over the selected time window, ranks by p-value, shows top 10 significant findings with color-coded significance stars.
-4. **Fix BTC Dominance in OverviewDashboard**: Use `getLivePriceFor(snapshot, 'BTC_DOM')` when live, else fall back to a reasonable estimate using BTC price / total mcap ratio from simulated data.
+1. **Extend `astroCalc.ts`**:
+   - Add `computeDominantPeriods(series: number[], sampleRateDays: number): Array<{period: number, power: number}>` using DFT approximation
+   - Add `computePhaseSync(series1: number[], series2: number[], periodDays: number): number` using circular statistics
+   - Export constants for known planetary synodic periods
+
+2. **Extend `MarketsPanel.tsx`**:
+   - Add `"10Y"` and `"20Y"` to `TimeRange` type and `TIME_RANGE_SECONDS` map
+   - Add the two new buttons to the time range row
+
+3. **Update `CorrelationPanel.tsx`**:
+   - Add `studyWindow` state: `"1Y" | "5Y" | "10Y" | "20Y"` (default `"5Y"`)
+   - Add `eventWindowDays` state: `3 | 7 | 14 | 30` (default `7`)
+   - Wire both into `runAspectEventStudy` call
+   - Add statistical summary cards at top: total events, most bullish, most bearish, best r pair
+   - Add Pattern History Chart: when user clicks a row in the aspect study table, open an inline expanded chart showing the full price history with vertical lines at each event occurrence
+   - Add Aspect Calendar section: scrollable 6-month calendar with colored squares per day based on significant events
+   - Add CSV export clipboard button in the table header
+
+4. **Create `CyclesPanel.tsx`**:
+   - Market selector + astro series selector
+   - Compute DFT on the combined/individual series
+   - Plot power spectrum (period on x-axis, power on y-axis) as a bar/area chart
+   - Highlight known planetary synodic periods as reference lines
+   - Phase synchronization score display
+
+5. **Update `App.tsx`**:
+   - Add `"cycles"` to `ActivePanel` type
+   - Add Cycles nav item
+   - Render `<CyclesPanel />` for `activePanel === "cycles"`
+
+6. **Wire everything and validate** (typecheck + build).

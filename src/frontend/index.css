@@ -141,10 +141,21 @@
   body {
     @apply bg-background text-foreground;
     font-family: "Sora", "Mona Sans", sans-serif;
-    background-image:
-      radial-gradient(ellipse at 10% 20%, oklch(0.2 0.06 265 / 0.3) 0%, transparent 50%),
-      radial-gradient(ellipse at 90% 80%, oklch(0.18 0.05 290 / 0.3) 0%, transparent 50%),
-      radial-gradient(ellipse at 50% 50%, oklch(0.15 0.03 240 / 0.2) 0%, transparent 70%);
+    background-image: radial-gradient(
+        ellipse at 10% 20%,
+        oklch(0.2 0.06 265 / 0.3) 0%,
+        transparent 50%
+      ),
+      radial-gradient(
+        ellipse at 90% 80%,
+        oklch(0.18 0.05 290 / 0.3) 0%,
+        transparent 50%
+      ),
+      radial-gradient(
+        ellipse at 50% 50%,
+        oklch(0.15 0.03 240 / 0.2) 0%,
+        transparent 70%
+      );
     background-attachment: fixed;
   }
 }
@@ -164,15 +175,13 @@
   }
 
   .neon-glow-blue {
-    box-shadow:
-      0 0 10px oklch(var(--neon-blue) / 0.3),
-      0 0 40px oklch(var(--neon-blue) / 0.1);
+    box-shadow: 0 0 10px oklch(var(--neon-blue) / 0.3), 0 0 40px
+      oklch(var(--neon-blue) / 0.1);
   }
 
   .neon-glow-teal {
-    box-shadow:
-      0 0 10px oklch(var(--neon-teal) / 0.3),
-      0 0 40px oklch(var(--neon-teal) / 0.1);
+    box-shadow: 0 0 10px oklch(var(--neon-teal) / 0.3), 0 0 40px
+      oklch(var(--neon-teal) / 0.1);
   }
 
   .neon-text-blue {
@@ -227,23 +236,41 @@
 
 /* ===== ANIMATIONS ===== */
 @keyframes pulse-glow {
-  0%, 100% { opacity: 0.7; }
-  50% { opacity: 1; }
+  0%,
+  100% {
+    opacity: 0.7;
+  }
+  50% {
+    opacity: 1;
+  }
 }
 
 @keyframes spin-slow {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 @keyframes shimmer {
-  0% { background-position: -200% 0; }
-  100% { background-position: 200% 0; }
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
 }
 
 @keyframes float {
-  0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(-6px); }
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-6px);
+  }
 }
 
 .animate-pulse-glow {

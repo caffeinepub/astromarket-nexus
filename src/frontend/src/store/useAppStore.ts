@@ -13,6 +13,7 @@ export type ActivePanel =
   | "solar_system"
   | "zodiac"
   | "correlation"
+  | "cycles"
   | "annotations";
 
 interface AppState {

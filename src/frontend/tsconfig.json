@@ -23,10 +23,5 @@
     }
   },
   "include": ["src"],
-  "exclude": [
-    "node_modules",
-    "dist",
-    "build",
-    "*.config.js"
-  ]
+  "exclude": ["node_modules", "dist", "build", "*.config.js"]
 }
