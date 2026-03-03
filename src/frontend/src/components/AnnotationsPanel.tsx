@@ -21,7 +21,10 @@ function generateId(): string {
 }
 
 export function AnnotationsPanel() {
-  const { selectedTimestamp, startTimestamp, endTimestamp } = useAppStore();
+  const { selectedTimestamp } = useAppStore();
+  // Show all annotations from 50 years ago up to 5 years in future
+  const startTimestamp = Math.floor(Date.now() / 1000) - 50 * 365 * 86400;
+  const endTimestamp = Math.floor(Date.now() / 1000) + 5 * 365 * 86400;
 
   const [isAdding, setIsAdding] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
